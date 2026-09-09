@@ -1,0 +1,57 @@
+# Python cache
+__pycache__
+*.py[cod]
+*.pyo
+
+# Virtual environment
+.venv
+venv
+env
+
+# Git
+.git
+.gitignore
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Testing
+.pytest_cache
+.coverage
+.coverage.*
+htmlcov
+
+# Type checking / linting
+.mypy_cache
+.pyright
+.ruff_cache
+
+# Build / packaging
+build
+dist
+*.egg-info
+
+# Logs
+*.log
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
