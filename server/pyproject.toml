@@ -7,7 +7,20 @@ authors = [
     { name = "Sandeep-singh-99", email = "sandeep.necoder@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "deepagents>=0.7.13",
+    "fastapi>=0.141.1",
+    "langchain>=1.4.0",
+    "langchain-community>=0.4.2",
+    "langchain-core>=1.6.2",
+    "langchain-google-genai>=4.4.0",
+    "langchain-groq>=1.1.3",
+    "langchain-tavily>=0.2.18",
+    "langgraph>=1.2.11",
+    "pydantic>=2.13.5",
+    "python-dotenv>=1.2.3",
+    "uvicorn>=0.52.4",
+]
 
 [project.scripts]
 server = "server:main"
