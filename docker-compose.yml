@@ -6,7 +6,7 @@ services:
       - "8000:8000"
     volumes:
       - ./server:/app
-      - server_venv:/app/.venv
+      - /app/__pycache__
     env_file:
       - ./server/.env
     environment:
@@ -16,7 +16,7 @@ services:
       WATCHFILES_POLL_INTERVAL: "0.5"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: uv run uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
 
   client:
     build: ./client
@@ -29,6 +29,3 @@ services:
     command: pnpm dev
     depends_on:
       - server
-
-volumes:
-  server_venv:
