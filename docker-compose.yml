@@ -17,15 +17,3 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
-
-  client:
-    build: ./client
-    container_name: nexora_client
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./client:/app
-      - /app/node_modules
-    command: pnpm dev
-    depends_on:
-      - server
