@@ -32,7 +32,7 @@ class User(Base):
     )
     is_verified: Mapped[bool] = mapped_column(
         Boolean,
-        default=False,
+        default=True,
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(
@@ -55,11 +55,6 @@ class User(Base):
     # Relationships
     refresh_sessions: Mapped[List["RefreshSession"]] = relationship(
         "RefreshSession",
-        back_populates="user",
-        cascade="all, delete-orphan",
-    )
-    email_verification_tokens: Mapped[List["EmailVerificationToken"]] = relationship(
-        "EmailVerificationToken",
         back_populates="user",
         cascade="all, delete-orphan",
     )
@@ -126,43 +121,6 @@ class RefreshSession(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="refresh_sessions")
-
-
-class EmailVerificationToken(Base):
-    __tablename__ = "email_verification_tokens"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
-    token_hash: Mapped[str] = mapped_column(
-        String(64),
-        unique=True,
-        index=True,
-        nullable=False,
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-    used_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=utc_now,
-        nullable=False,
-    )
-
-    user: Mapped["User"] = relationship("User", back_populates="email_verification_tokens")
 
 
 class PasswordResetToken(Base):

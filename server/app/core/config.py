@@ -23,18 +23,8 @@ class Settings:
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(
         os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7")
     )
-    VERIFICATION_TOKEN_EXPIRE_HOURS: int = int(
-        os.getenv("VERIFICATION_TOKEN_EXPIRE_HOURS", "24")
-    )
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "30")
-    )
-
-    # Resend
-    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
-    RESEND_FROM_EMAIL: str = os.getenv(
-        "RESEND_FROM_EMAIL",
-        "onboarding@resend.dev",
     )
 
     # Frontend

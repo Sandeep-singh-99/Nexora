@@ -9,8 +9,6 @@ import {
   getMeApi,
   forgotPasswordApi,
   resetPasswordApi,
-  verifyEmailApi,
-  resendVerificationApi,
 } from "@/lib/api/auth";
 import {
   ApiErrorResponse,
@@ -18,8 +16,6 @@ import {
   LoginRequest,
   RegisterRequest,
   ResetPasswordRequest,
-  VerifyEmailRequest,
-  ResendVerificationRequest,
 } from "@/types/auth";
 
 // Helper to extract clean error message string from FastAPI error response
@@ -91,17 +87,5 @@ export function useForgotPassword() {
 export function useResetPassword() {
   return useMutation({
     mutationFn: (data: ResetPasswordRequest) => resetPasswordApi(data),
-  });
-}
-
-export function useVerifyEmail() {
-  return useMutation({
-    mutationFn: (data: VerifyEmailRequest) => verifyEmailApi(data),
-  });
-}
-
-export function useResendVerification() {
-  return useMutation({
-    mutationFn: (data: ResendVerificationRequest) => resendVerificationApi(data),
   });
 }

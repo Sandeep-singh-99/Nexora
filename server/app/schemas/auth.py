@@ -27,18 +27,6 @@ class RefreshRequest(BaseModel):
     refresh_token: Optional[str] = None
 
 
-class VerifyEmailRequest(BaseModel):
-    token: str = Field(..., min_length=1, description="Single-use verification token.")
-
-
-class ResendVerificationRequest(BaseModel):
-    email: EmailStr
-
-    @field_validator("email")
-    def lowercase_email(cls, v: str) -> str:
-        return v.lower().strip()
-
-
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

@@ -3,12 +3,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import (
+from app.dependencies.auth import (
     get_client_type,
-    get_current_active_verified_user,
     get_current_user,
 )
-from app.auth.service import AuthService
+from app.services.auth import AuthService
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import rate_limit_auth, rate_limit_email
@@ -19,11 +18,9 @@ from app.schemas.auth import (
     MessageResponse,
     RefreshRequest,
     RegisterRequest,
-    ResendVerificationRequest,
     ResetPasswordRequest,
     TokenResponse,
     UserResponse,
-    VerifyEmailRequest,
 )
 
 router = APIRouter(prefix="", tags=["Authentication"])
@@ -83,10 +80,10 @@ async def register(
     register_data: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Register a new user with email and password. Sends email verification token via Resend."""
+    """Register a new user with email and password."""
     await AuthService.register(db, register_data)
     return MessageResponse(
-        message="Registration successful. Please check your email to verify your account."
+        message="Registration successful. You can now log in."
     )
 
 
@@ -210,34 +207,10 @@ async def logout(
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(
-    current_user: User = Depends(get_current_active_verified_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """Retrieve profile of the currently authenticated & verified user."""
+    """Retrieve profile of the currently authenticated user."""
     return current_user
-
-
-@router.post("/verify-email", response_model=MessageResponse)
-async def verify_email(
-    verify_data: VerifyEmailRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Verify user email address using single-use verification token."""
-    await AuthService.verify_email(db, verify_data.token)
-    return MessageResponse(
-        message="Email address verified successfully. You can now log in."
-    )
-
-
-@router.post("/resend-verification", response_model=MessageResponse, dependencies=[Depends(rate_limit_email)])
-async def resend_verification(
-    resend_data: ResendVerificationRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Resend email verification link."""
-    await AuthService.resend_verification(db, resend_data.email)
-    return MessageResponse(
-        message="If the email is registered and unverified, a verification link has been sent."
-    )
 
 
 @router.post("/forgot-password", response_model=MessageResponse, dependencies=[Depends(rate_limit_email)])

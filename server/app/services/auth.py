@@ -18,8 +18,7 @@ from app.core.security import (
     hash_token,
     verify_password,
 )
-from app.email.resend import send_password_reset_email, send_verification_email
-from app.models.auth import EmailVerificationToken, PasswordResetToken, RefreshSession, User
+from app.models.auth import PasswordResetToken, RefreshSession, User
 from app.schemas.auth import LoginRequest, RegisterRequest
 
 
@@ -39,7 +38,7 @@ class AuthService:
 
     @staticmethod
     async def register(db: AsyncSession, register_data: RegisterRequest) -> User:
-        """Register a new user, store unverified status, hash token, and send verification email."""
+        """Register a new user directly as active and verified."""
         # Check if email is already registered
         stmt = select(User).where(User.email == register_data.email)
         result = await db.execute(stmt)
@@ -55,28 +54,12 @@ class AuthService:
         new_user = User(
             email=register_data.email,
             hashed_password=hashed,
-            is_verified=False,
+            is_verified=True,
             is_active=True,
         )
         db.add(new_user)
-        await db.flush()
-
-        # Generate single-use email verification token
-        raw_token = generate_secure_token()
-        token_hash = hash_token(raw_token)
-        expires_at = utc_now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
-
-        verification_record = EmailVerificationToken(
-            user_id=new_user.id,
-            token_hash=token_hash,
-            expires_at=expires_at,
-        )
-        db.add(verification_record)
         await db.commit()
         await db.refresh(new_user)
-
-        # Dispatch verification email via Resend
-        await send_verification_email(new_user.email, raw_token)
 
         return new_user
 
@@ -87,7 +70,7 @@ class AuthService:
         user_agent: Optional[str] = None,
         ip_address: Optional[str] = None,
     ) -> Tuple[User, str, str]:
-        """Authenticate user, verify email status, create session, and return access/refresh token pair."""
+        """Authenticate user, create session, and return access/refresh token pair."""
         stmt = select(User).where(User.email == login_data.email)
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()
@@ -103,13 +86,6 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account is inactive.",
-            )
-
-        # Enforce email verification before login
-        if not user.is_verified:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email not verified. Please verify your email before logging in.",
             )
 
         jti = str(uuid.uuid4())
@@ -131,57 +107,6 @@ class AuthService:
         await db.commit()
 
         return user, access_token, refresh_token
-
-    @staticmethod
-    async def verify_email(db: AsyncSession, raw_token: str) -> None:
-        """Validate single-use verification token hash and mark user as verified."""
-        token_h = hash_token(raw_token)
-        now = utc_now()
-
-        stmt = select(EmailVerificationToken).where(
-            EmailVerificationToken.token_hash == token_h,
-            EmailVerificationToken.used_at.is_(None),
-        )
-        result = await db.execute(stmt)
-        token_record = result.scalar_one_or_none()
-
-        if not token_record or ensure_utc(token_record.expires_at) < now:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired verification token.",
-            )
-
-        token_record.used_at = now
-
-        # Update user is_verified
-        user_stmt = select(User).where(User.id == token_record.user_id)
-        user_result = await db.execute(user_stmt)
-        user = user_result.scalar_one()
-        user.is_verified = True
-
-        await db.commit()
-
-    @staticmethod
-    async def resend_verification(db: AsyncSession, email: str) -> None:
-        """Resend verification email if user exists and is unverified."""
-        stmt = select(User).where(User.email == email)
-        result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
-
-        if user and not user.is_verified:
-            raw_token = generate_secure_token()
-            token_h = hash_token(raw_token)
-            expires_at = utc_now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
-
-            verification_record = EmailVerificationToken(
-                user_id=user.id,
-                token_hash=token_h,
-                expires_at=expires_at,
-            )
-            db.add(verification_record)
-            await db.commit()
-
-            await send_verification_email(email, raw_token)
 
     @staticmethod
     async def refresh_tokens(
@@ -307,8 +232,6 @@ class AuthService:
             )
             db.add(reset_record)
             await db.commit()
-
-            await send_password_reset_email(email, raw_token)
 
     @staticmethod
     async def reset_password(db: AsyncSession, raw_token: str, new_password: str) -> None:

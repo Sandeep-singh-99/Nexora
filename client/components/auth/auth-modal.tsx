@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { X, ArrowRight, Lock, Mail, CheckCircle2, AlertCircle, Inbox } from "lucide-react";
+import { X, ArrowRight, Lock, Mail, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLogin, useRegister, getErrorMessage } from "@/hooks/use-auth";
 
@@ -78,9 +78,25 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
       registerMutation.mutate(
         { email, password },
         {
-          onSuccess: (data) => {
-            setSuccessMessage(
-              data.message || "Registration successful. Please check your email to verify your account."
+          onSuccess: () => {
+            // Auto login user after registration
+            loginMutation.mutate(
+              { email, password },
+              {
+                onSuccess: () => {
+                  setSuccessMessage("Account created & signed in successfully!");
+                  setTimeout(() => {
+                    onClose();
+                    setSuccessMessage(null);
+                    setEmail("");
+                    setPassword("");
+                  }, 1200);
+                },
+                onError: (error) => {
+                  setErrorMessage(getErrorMessage(error));
+                  setTab("signin");
+                },
+              }
             );
           },
           onError: (error) => {
@@ -183,23 +199,11 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-bold text-white">
-              {tab === "signin" ? "Authenticated!" : "Check Your Email"}
+              {tab === "signin" ? "Authenticated!" : "Account Created!"}
             </h3>
             <p className="text-xs text-slate-300 leading-relaxed max-w-xs">
               {successMessage}
             </p>
-
-            {tab === "signup" && (
-              <div className="w-full p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200/90 text-xs flex items-start gap-2.5 text-left mt-2">
-                <Inbox className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <span className="font-semibold text-amber-300 block">Can&apos;t find the email?</span>
-                  <p className="text-[11px] text-amber-200/80 leading-normal">
-                    Please check your <strong>Spam</strong> or <strong>Junk</strong> folder.
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

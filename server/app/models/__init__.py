@@ -1,8 +1,7 @@
-from app.models.auth import User, RefreshSession, EmailVerificationToken, PasswordResetToken
+from app.models.auth import User, RefreshSession, PasswordResetToken
 
 __all__ = [
     "User",
     "RefreshSession",
-    "EmailVerificationToken",
     "PasswordResetToken",
 ]

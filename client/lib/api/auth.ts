@@ -5,11 +5,9 @@ import {
   MessageResponse,
   RefreshRequest,
   RegisterRequest,
-  ResendVerificationRequest,
   ResetPasswordRequest,
   TokenResponse,
   UserResponse,
-  VerifyEmailRequest,
 } from "../../types/auth";
 
 export const registerApi = async (
@@ -56,22 +54,5 @@ export const resetPasswordApi = async (
   data: ResetPasswordRequest
 ): Promise<MessageResponse> => {
   const response = await api.post<MessageResponse>("/auth/reset-password", data);
-  return response.data;
-};
-
-export const verifyEmailApi = async (
-  data: VerifyEmailRequest
-): Promise<MessageResponse> => {
-  const response = await api.post<MessageResponse>("/auth/verify-email", data);
-  return response.data;
-};
-
-export const resendVerificationApi = async (
-  data: ResendVerificationRequest
-): Promise<MessageResponse> => {
-  const response = await api.post<MessageResponse>(
-    "/auth/resend-verification",
-    data
-  );
   return response.data;
 };

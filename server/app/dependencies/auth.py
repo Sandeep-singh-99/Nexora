@@ -79,12 +79,7 @@ async def get_current_user(
 async def get_current_active_verified_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Ensure user is verified before accessing protected routes."""
-    if not current_user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email address not verified.",
-        )
+    """Return current active authenticated user."""
     return current_user
 
 
