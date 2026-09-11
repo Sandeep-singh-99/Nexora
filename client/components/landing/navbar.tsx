@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { Menu, Sparkles, ArrowRight } from "lucide-react";
+import { Menu, Sparkles, ArrowRight, User as UserIcon, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { NAV_ITEMS } from "@/lib/constants";
+import { useCurrentUser, useLogout } from "@/hooks/use-auth";
 
 interface NavbarProps {
   onOpenAuth?: (tab: "signin" | "signup") => void;
@@ -14,6 +15,9 @@ interface NavbarProps {
 export function Navbar({ onOpenAuth }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const { data: user, isLoading } = useCurrentUser();
+  const logoutMutation = useLogout();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -38,7 +42,6 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
             href="#"
             className="flex items-center gap-2.5 group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg p-1"
           >
-            {/* Minimal abstract "N" connected-node logo mark */}
             <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600/30 via-emerald-500/20 to-teal-500/30 border border-emerald-500/30 group-hover:border-emerald-400/60 transition-all shadow-inner">
               <svg
                 width="20"
@@ -72,23 +75,45 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
 
           {/* Desktop Right Actions */}
           <div className="hidden md:flex items-center gap-3">
-            <button
-              onClick={() => onOpenAuth?.("signin")}
-              className="text-sm font-medium text-[#98A2B3] hover:text-[#F5F7FA] px-3 py-2 transition-colors hover:underline underline-offset-4 cursor-pointer"
-            >
-              Sign In
-            </button>
-            <Button
-              variant="primary"
-              size="default"
-              className="relative group overflow-hidden shadow-lg shadow-emerald-500/20 hover:shadow-emerald-400/30 rounded-xl"
-              onClick={() => onOpenAuth?.("signup")}
-            >
-              <span className="relative z-10 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-950">
-                Get Started
-                <Sparkles className="w-3.5 h-3.5 text-slate-950 group-hover:rotate-12 transition-transform" />
-              </span>
-            </Button>
+            {isLoading ? (
+              <div className="w-20 h-8 bg-white/5 animate-pulse rounded-xl" />
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/[0.05] border border-white/10 rounded-xl text-xs text-slate-300">
+                  <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="max-w-[140px] truncate">{user.email}</span>
+                </div>
+                <button
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-rose-400 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => onOpenAuth?.("signin")}
+                  className="text-sm font-medium text-[#98A2B3] hover:text-[#F5F7FA] px-3 py-2 transition-colors hover:underline underline-offset-4 cursor-pointer"
+                >
+                  Sign In
+                </button>
+                <Button
+                  variant="primary"
+                  size="default"
+                  className="relative group overflow-hidden shadow-lg shadow-emerald-500/20 hover:shadow-emerald-400/30 rounded-xl"
+                  onClick={() => onOpenAuth?.("signup")}
+                >
+                  <span className="relative z-10 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-950">
+                    Get Started
+                    <Sparkles className="w-3.5 h-3.5 text-slate-950 group-hover:rotate-12 transition-transform" />
+                  </span>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Hamburger Menu Icon */}
@@ -144,26 +169,46 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
         </nav>
 
         <div className="mt-8 flex flex-col gap-3 pt-6 border-t border-white/10">
-          <button
-            onClick={() => {
-              setMobileOpen(false);
-              onOpenAuth?.("signin");
-            }}
-            className="w-full text-center py-2.5 text-sm font-medium text-slate-300 hover:text-white rounded-xl border border-white/10 bg-white/5 transition-colors cursor-pointer"
-          >
-            Sign In
-          </button>
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full justify-center text-slate-950 font-semibold"
-            onClick={() => {
-              setMobileOpen(false);
-              onOpenAuth?.("signup");
-            }}
-          >
-            Get Started
-          </Button>
+          {user ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-xl text-xs text-slate-300">
+                <UserIcon className="w-4 h-4 text-emerald-400" />
+                <span className="truncate">{user.email}</span>
+              </div>
+              <button
+                onClick={() => {
+                  setMobileOpen(false);
+                  logoutMutation.mutate();
+                }}
+                className="w-full text-center py-2.5 text-sm font-medium text-rose-400 hover:bg-rose-500/10 rounded-xl border border-rose-500/20 transition-colors cursor-pointer"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  setMobileOpen(false);
+                  onOpenAuth?.("signin");
+                }}
+                className="w-full text-center py-2.5 text-sm font-medium text-slate-300 hover:text-white rounded-xl border border-white/10 bg-white/5 transition-colors cursor-pointer"
+              >
+                Sign In
+              </button>
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full justify-center text-slate-950 font-semibold"
+                onClick={() => {
+                  setMobileOpen(false);
+                  onOpenAuth?.("signup");
+                }}
+              >
+                Get Started
+              </Button>
+            </>
+          )}
         </div>
       </Sheet>
     </>

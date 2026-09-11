@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { X, Sparkles, ArrowRight, Lock, Mail, User, CheckCircle2 } from "lucide-react";
+import { X, ArrowRight, Lock, Mail, CheckCircle2, AlertCircle, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLogin, useRegister, getErrorMessage } from "@/hooks/use-auth";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,15 +16,24 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
   const [tab, setTab] = useState<"signin" | "signup">(initialTab);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    setTab(initialTab);
-    setSuccess(false);
-    setLoading(false);
-  }, [initialTab, isOpen]);
+  const loginMutation = useLogin();
+  const registerMutation = useRegister();
+
+  const isPending = loginMutation.isPending || registerMutation.isPending;
+
+  // Sync tab with initialTab when opened
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setTab(initialTab);
+      setSuccessMessage(null);
+      setErrorMessage(null);
+    }
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -43,17 +53,48 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => {
-        onClose();
-        setSuccess(false);
-      }, 1500);
-    }, 1000);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    if (tab === "signin") {
+      loginMutation.mutate(
+        { email, password },
+        {
+          onSuccess: () => {
+            setSuccessMessage("Welcome back! Signed in successfully.");
+            setTimeout(() => {
+              onClose();
+              setSuccessMessage(null);
+            }, 1200);
+          },
+          onError: (error) => {
+            setErrorMessage(getErrorMessage(error));
+          },
+        }
+      );
+    } else {
+      registerMutation.mutate(
+        { email, password },
+        {
+          onSuccess: (data) => {
+            setSuccessMessage(
+              data.message || "Registration successful. Please check your email to verify your account."
+            );
+          },
+          onError: (error) => {
+            setErrorMessage(getErrorMessage(error));
+          },
+        }
+      );
+    }
+  };
+
+  const handleTabChange = (newTab: "signin" | "signup") => {
+    setTab(newTab);
+    setSuccessMessage(null);
+    setErrorMessage(null);
   };
 
   return (
@@ -66,7 +107,7 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
 
       {/* Modal Container */}
       <div className="relative w-full max-w-md bg-[#0D131D] border border-white/[0.12] rounded-3xl p-6 sm:p-8 shadow-2xl shadow-emerald-950/40 z-10 transition-all animate-in zoom-in-95 duration-200 overflow-hidden">
-        {/* Subtle Ambient Radial Glow */}
+        {/* Ambient Radial Glow */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close Button */}
@@ -105,7 +146,7 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
         <div className="flex p-1 bg-white/[0.04] border border-white/[0.06] rounded-2xl mb-6">
           <button
             type="button"
-            onClick={() => { setTab("signin"); setSuccess(false); }}
+            onClick={() => handleTabChange("signin")}
             className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all ${
               tab === "signin"
                 ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-950/50"
@@ -116,7 +157,7 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
           </button>
           <button
             type="button"
-            onClick={() => { setTab("signup"); setSuccess(false); }}
+            onClick={() => handleTabChange("signup")}
             className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all ${
               tab === "signup"
                 ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-950/50"
@@ -127,155 +168,105 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
           </button>
         </div>
 
-        {success ? (
-          <div className="py-8 flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in duration-300">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-2">
+        {/* Error Alert */}
+        {errorMessage && (
+          <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-rose-300 text-xs animate-in fade-in duration-200">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <span className="flex-1">{errorMessage}</span>
+          </div>
+        )}
+
+        {/* Success Screen */}
+        {successMessage ? (
+          <div className="py-6 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in duration-300">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-1">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-bold text-white">
-              {tab === "signin" ? "Welcome back!" : "Account Created!"}
+              {tab === "signin" ? "Authenticated!" : "Check Your Email"}
             </h3>
-            <p className="text-xs text-slate-400">
-              {tab === "signin" ? "Redirecting to your Nexora workspace..." : "Your workspace is ready to go."}
+            <p className="text-xs text-slate-300 leading-relaxed max-w-xs">
+              {successMessage}
             </p>
+
+            {tab === "signup" && (
+              <div className="w-full p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200/90 text-xs flex items-start gap-2.5 text-left mt-2">
+                <Inbox className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-amber-300 block">Can&apos;t find the email?</span>
+                  <p className="text-[11px] text-amber-200/80 leading-normal">
+                    Please check your <strong>Spam</strong> or <strong>Junk</strong> folder.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
-          <>
-            {/* Social Login Buttons */}
-            <div className="space-y-3 mb-6">
-              {/* Google Login Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setLoading(true);
-                  setTimeout(() => { setLoading(false); setSuccess(true); setTimeout(onClose, 1500); }, 800);
-                }}
-                className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] hover:border-white/[0.18] rounded-xl text-xs sm:text-sm font-medium text-slate-200 transition-all duration-200 group"
-              >
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>Continue with Google</span>
-              </button>
-
-              {/* Facebook Login Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setLoading(true);
-                  setTimeout(() => { setLoading(false); setSuccess(true); setTimeout(onClose, 1500); }, 800);
-                }}
-                className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] hover:border-white/[0.18] rounded-xl text-xs sm:text-sm font-medium text-slate-200 transition-all duration-200 group"
-              >
-                <svg className="w-4 h-4 fill-[#1877F2] shrink-0" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                </svg>
-                <span>Continue with Facebook</span>
-              </button>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Email Address
+              </label>
+              <div className="relative flex items-center">
+                <Mail className="absolute left-3.5 w-4 h-4 text-slate-500" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] focus:border-emerald-500 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-colors"
+                />
+              </div>
             </div>
 
-            {/* Divider */}
-            <div className="relative flex items-center justify-center my-6">
-              <div className="w-full border-t border-white/[0.08]" />
-              <span className="absolute bg-[#0D131D] px-3 text-[11px] font-medium text-slate-500 uppercase tracking-wider">
-                or continue with email
-              </span>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {tab === "signup" && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">Full Name</label>
-                  <div className="relative flex items-center">
-                    <User className="absolute left-3.5 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Alex Morgan"
-                      className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] focus:border-emerald-500 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-colors"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Email Address</label>
-                <div className="relative flex items-center">
-                  <Mail className="absolute left-3.5 w-4 h-4 text-slate-500" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] focus:border-emerald-500 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-slate-300">Password</label>
-                  {tab === "signin" && (
-                    <a href="#" className="text-[11px] text-emerald-400 hover:underline">
-                      Forgot password?
-                    </a>
-                  )}
-                </div>
-                <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 w-4 h-4 text-slate-500" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] focus:border-emerald-500 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-colors"
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                disabled={loading}
-                className="w-full justify-center mt-2 py-3 text-slate-950 font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-400/30"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
-                    Processing...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5">
-                    {tab === "signin" ? "Sign In to Nexora" : "Create Free Account"}
-                    <ArrowRight className="w-4 h-4" />
-                  </span>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300">
+                  Password
+                </label>
+                {tab === "signin" && (
+                  <a href="#" className="text-[11px] text-emerald-400 hover:underline">
+                    Forgot password?
+                  </a>
                 )}
-              </Button>
-            </form>
+              </div>
+              <div className="relative flex items-center">
+                <Lock className="absolute left-3.5 w-4 h-4 text-slate-500" />
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] focus:border-emerald-500 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              disabled={isPending}
+              className="w-full justify-center mt-2 py-3 text-slate-950 font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-400/30"
+            >
+              {isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                  Processing...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  {tab === "signin" ? "Sign In to Nexora" : "Create Free Account"}
+                  <ArrowRight className="w-4 h-4" />
+                </span>
+              )}
+            </Button>
 
             <p className="mt-4 text-center text-[11px] text-slate-500">
-              By continuing, you agree to Nexora's{" "}
+              By continuing, you agree to Nexora&apos;s{" "}
               <a href="#" className="text-slate-400 underline hover:text-white">
                 Terms
               </a>{" "}
@@ -285,7 +276,7 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
               </a>
               .
             </p>
-          </>
+          </form>
         )}
       </div>
     </div>

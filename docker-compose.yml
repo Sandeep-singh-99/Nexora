@@ -6,6 +6,7 @@ services:
       - "8000:8000"
     volumes:
       - ./server:/app
+      - /app/.venv
       - /app/__pycache__
     env_file:
       - ./server/.env
