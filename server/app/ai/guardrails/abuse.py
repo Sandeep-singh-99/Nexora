@@ -1,0 +1,17 @@
+abuse = [
+    "idiot",
+    "stupid",
+    "dumb",
+    "moron",
+    "fool",
+    "loser",
+    "shut up",
+    "hate",
+    "bastard",
+    "asshole",
+    "bitch",
+    "fuck",
+    "fucking",
+    "shit",
+    "damn",
+]

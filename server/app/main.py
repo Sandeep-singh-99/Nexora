@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth_router
+from app.api.v1.auth import router as auth_router
+from app.api.v1.ai import router as ai_router
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -38,6 +39,7 @@ app.add_middleware(
 
 # Include Authentication Router
 app.include_router(auth_router, prefix="/auth")
+app.include_router(ai_router, prefix="/api/v1")
 
 
 @app.get("/", tags=["Root"])

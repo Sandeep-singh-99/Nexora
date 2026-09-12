@@ -28,4 +28,6 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "sqlalchemy>=2.0.52",
     "alembic>=1.19.2",
+    "langchain-huggingface>=1.2.2",
+    "sentence-transformers>=6.0.1",
 ]

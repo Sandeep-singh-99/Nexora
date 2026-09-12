@@ -9,6 +9,8 @@ import { ChatInput } from "@/components/chat/chat-input"
 import { EmptyState } from "@/components/chat/empty-state"
 import { ScrollToBottom } from "@/components/chat/scroll-to-bottom"
 import { SettingsDialog } from "@/components/chat/settings-dialog"
+import { sendChatMessageApi } from "@/lib/api/ai"
+import axios from "axios"
 
 // Demo Conversations with structured text + Generative UI data
 const INITIAL_CONVERSATIONS: ConversationSession[] = [
@@ -203,59 +205,58 @@ export default function ChatPage() {
       currentConv.title = textToSend.slice(0, 30) + (textToSend.length > 30 ? "..." : "")
     }
 
-    // Simulate AI SDK Streaming response & Generative UI routing
-    setTimeout(() => {
-      let aiContent = "I analyzed your request and processed the workspace context."
-      let uiPayload: ChatMessage["ui"] = undefined
+    const startTime = Date.now()
 
-      const lower = textToSend.toLowerCase()
-      if (lower.includes("revenue") || lower.includes("chart")) {
-        aiContent = "Here is your monthly revenue metrics breakdown:"
-        uiPayload = {
-          type: "chart",
-          props: { title: "Revenue Overview", value: "$24,580", change: "+18.4%" },
-        }
-      } else if (lower.includes("transaction") || lower.includes("table")) {
-        aiContent = "Retrieved your recent transactions list:"
-        uiPayload = {
-          type: "table",
-          props: { title: "Recent Billing Activity" },
-        }
-      } else if (lower.includes("project") || lower.includes("code") || lower.includes("build")) {
-        aiContent = "Here is your current project metadata and active setup:"
-        uiPayload = {
-          type: "project",
-          props: { name: "ClassBuddy Workspace", status: "Active" },
-        }
-      } else if (lower.includes("search") || lower.includes("langgraph")) {
-        aiContent = "I queried the documentation registry and found these references:"
-        uiPayload = {
-          type: "search_results",
-          props: { query: textToSend },
-        }
-      } else {
-        aiContent = `### Nexora AI Response\n\nI have received your prompt:\n\n> "${textToSend}"\n\nHere is an example code snippet generated for your request:\n\n\`\`\`typescript\n// Vercel AI SDK -> FastAPI Stream Handler\nexport async function POST(req: Request) {\n  const { messages } = await req.json();\n  return new Response("Streaming response from Gemini 2.5 Flash");\n}\n\`\`\`\n\nYou can connect this frontend directly to your FastAPI backend endpoint when ready!`
-        uiPayload = {
-          type: "card",
-          props: { title: "System Status", subtitle: "Connected to Gemini 2.5 Flash" },
-        }
-      }
+    try {
+      // Connect to FastAPI backend route /api/v1/ai/chat
+      const data = await sendChatMessageApi({ message: textToSend })
+      const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1)
 
       const assistantMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
         role: "assistant",
-        content: aiContent,
-        thinkingTime: "1.5s",
+        content: data.response,
+        thinkingTime: `${durationSeconds}s`,
         createdAt: new Date(),
-        ui: uiPayload,
       }
 
       setMessagesMap((prev) => ({
         ...prev,
         [activeId]: [...(prev[activeId] || []), assistantMsg],
       }))
+    } catch (error: any) {
+      console.error("AI Chat API Error:", error)
+      let displayError = "⚠️ **Connection Error**: Unable to connect to the backend server `/api/v1/ai/chat`. Please make sure your FastAPI backend server is running on `http://localhost:8000`."
+
+      if (axios.isAxiosError(error) && error.response) {
+        const responseData = error.response.data
+        const detail = responseData?.detail || responseData
+
+        if (typeof detail === "object" && detail !== null) {
+          if (detail.code === "CONTENT_BLOCKED") {
+            displayError = `🛡️ **Content Blocked**: ${detail.message || "Your message was flagged by safety guardrails and could not be processed."}`
+          } else if (detail.message) {
+            displayError = `⚠️ **Error (${error.response.status})**: ${detail.message}`
+          }
+        } else if (typeof detail === "string") {
+          displayError = `⚠️ **Error (${error.response.status})**: ${detail}`
+        }
+      }
+
+      const errorMsg: ChatMessage = {
+        id: `msg-ai-${Date.now()}`,
+        role: "assistant",
+        content: displayError,
+        createdAt: new Date(),
+      }
+
+      setMessagesMap((prev) => ({
+        ...prev,
+        [activeId]: [...(prev[activeId] || []), errorMsg],
+      }))
+    } finally {
       setIsLoading(false)
-    }, 1200)
+    }
   }
 
   return (
