@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
-
+import logging
 from app.schemas.ai import ChatRequest, ChatResponse
 from app.ai.agents.main_agent import create_main_agent
 from app.ai.middleware.abuse_filter import AbuseFilterError
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="",
@@ -17,7 +18,7 @@ agent = create_main_agent()
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
-        result = agent.invoke({
+        result = await agent.ainvoke({
             "messages": [
                 {
                     "role": "user",
@@ -29,7 +30,7 @@ async def chat(request: ChatRequest):
         response = result["messages"][-1].content
 
         return ChatResponse(
-            response=response
+            response=str(response)
         )
 
     except AbuseFilterError as e:
@@ -42,7 +43,8 @@ async def chat(request: ChatRequest):
         )
 
     except Exception as e:
+        logger.exception("AI request failed with error: %s", e)
         raise HTTPException(
             status_code=500,
-            detail="AI request failed",
+            detail=f"AI request failed: {str(e)}",
         )
