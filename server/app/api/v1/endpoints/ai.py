@@ -6,7 +6,7 @@ from app.ai.middleware.abuse_filter import AbuseFilterError
 
 
 router = APIRouter(
-    prefix="/ai",
+    prefix="",
     tags=["AI"],
 )
 

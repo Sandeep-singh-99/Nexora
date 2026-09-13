@@ -6,7 +6,7 @@ from app.ai.core.llm import get_llm
 
 
 def create_main_agent():
-    model = get_llm("gemini")
+    model = get_llm("groq")
 
     return create_agent(
         model=model,
