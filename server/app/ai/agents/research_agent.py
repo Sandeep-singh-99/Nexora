@@ -1,11 +1,11 @@
 from app.ai.core.llm import get_llm
 from app.ai.core.state import AgentState
 
-def chat_node(state: AgentState) -> dict:
+def research_node(state: AgentState) -> dict:
     llm = get_llm("groq")
     system_prompt = (
-        "You are Nexora's general assistant. "
-        "Provide friendly, clear, and beginner-friendly answers."
+        "You are Nexora's research assistant. "
+        "Provide factual, structured, and in-depth answers to user inquiries."
     )
     messages = [{"role": "system", "content": system_prompt}] + list(state["messages"])
     response = llm.invoke(messages)

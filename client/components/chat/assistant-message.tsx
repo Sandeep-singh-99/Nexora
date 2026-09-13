@@ -57,6 +57,10 @@ function CodeBlock({ language, value }: { language: string; value: string }) {
 }
 
 export function AssistantMessage({ message, onRegenerate }: AssistantMessageProps) {
+  const showThinking = Boolean(
+    message.thinkingTime || message.thinkingText || message.isSearching
+  )
+
   return (
     <div className="flex w-full gap-3 my-5 group">
       {/* Nexora AI Icon Avatar */}
@@ -67,64 +71,81 @@ export function AssistantMessage({ message, onRegenerate }: AssistantMessageProp
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden max-w-full">
-        {/* Optional Thinking state */}
-        {message.thinkingTime && <AIThinking thinkingTime={message.thinkingTime} />}
+        {/* Agent Status Badge */}
+        {message.statusLabel && (
+          <div className="mb-1 text-xs text-emerald-400/80 font-mono flex items-center gap-1.5 animate-pulse">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+            <span>{message.statusLabel}</span>
+          </div>
+        )}
+
+        {/* Optional Thinking state & Search status */}
+        {showThinking && (
+          <AIThinking
+            thinkingTime={message.thinkingTime}
+            thinkingText={message.thinkingText}
+            searchQuery={message.searchQuery}
+            isSearching={message.isSearching}
+          />
+        )}
 
         {/* Message Content */}
-        <div className="prose prose-invert max-w-none text-sm text-slate-200 leading-relaxed font-sans">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ node, className, children, ...props }: any) {
-                const match = /language-(\w+)/.exec(className || "")
-                const codeString = String(children).replace(/\n$/, "")
-                const isInline = !match && !codeString.includes("\n")
+        {message.content && (
+          <div className="prose prose-invert max-w-none text-sm text-slate-200 leading-relaxed font-sans">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ node, className, children, ...props }: any) {
+                  const match = /language-(\w+)/.exec(className || "")
+                  const codeString = String(children).replace(/\n$/, "")
+                  const isInline = !match && !codeString.includes("\n")
 
-                if (!isInline) {
-                  return <CodeBlock language={match ? match[1] : "plaintext"} value={codeString} />
-                }
-                return (
-                  <code className="bg-white/10 text-emerald-300 font-mono text-xs px-1.5 py-0.5 rounded border border-white/10" {...props}>
+                  if (!isInline) {
+                    return <CodeBlock language={match ? match[1] : "plaintext"} value={codeString} />
+                  }
+                  return (
+                    <code className="bg-white/10 text-emerald-300 font-mono text-xs px-1.5 py-0.5 rounded border border-white/10" {...props}>
+                      {children}
+                    </code>
+                  )
+                },
+                h1: ({ children }) => <h1 className="text-xl font-bold text-white mt-4 mb-2">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-lg font-semibold text-white mt-3 mb-2">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-base font-semibold text-slate-100 mt-3 mb-1">{children}</h3>,
+                p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>,
+                li: ({ children }) => <li className="text-slate-200">{children}</li>,
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-2 border-emerald-500/50 pl-3 my-2 text-slate-400 italic bg-white/[0.02] py-1 rounded-r">
                     {children}
-                  </code>
-                )
-              },
-              h1: ({ children }) => <h1 className="text-xl font-bold text-white mt-4 mb-2">{children}</h1>,
-              h2: ({ children }) => <h2 className="text-lg font-semibold text-white mt-3 mb-2">{children}</h2>,
-              h3: ({ children }) => <h3 className="text-base font-semibold text-slate-100 mt-3 mb-1">{children}</h3>,
-              p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
-              ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>,
-              ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>,
-              li: ({ children }) => <li className="text-slate-200">{children}</li>,
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-emerald-500/50 pl-3 my-2 text-slate-400 italic bg-white/[0.02] py-1 rounded-r">
-                  {children}
-                </blockquote>
-              ),
-              a: ({ href, children }) => (
-                <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-400 underline underline-offset-4 hover:text-emerald-300">
-                  {children}
-                </a>
-              ),
-              table: ({ children }) => (
-                <div className="overflow-x-auto my-3 rounded-xl border border-white/10">
-                  <table className="w-full text-xs text-slate-200">{children}</table>
-                </div>
-              ),
-              thead: ({ children }) => <thead className="bg-white/[0.05] border-b border-white/10">{children}</thead>,
-              th: ({ children }) => <th className="p-2.5 text-left font-semibold text-slate-300">{children}</th>,
-              td: ({ children }) => <td className="p-2.5 border-t border-white/5">{children}</td>,
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
-        </div>
+                  </blockquote>
+                ),
+                a: ({ href, children }) => (
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-400 underline underline-offset-4 hover:text-emerald-300">
+                    {children}
+                  </a>
+                ),
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-3 rounded-xl border border-white/10">
+                    <table className="w-full text-xs text-slate-200">{children}</table>
+                  </div>
+                ),
+                thead: ({ children }) => <thead className="bg-white/[0.05] border-b border-white/10">{children}</thead>,
+                th: ({ children }) => <th className="p-2.5 text-left font-semibold text-slate-300">{children}</th>,
+                td: ({ children }) => <td className="p-2.5 border-t border-white/5">{children}</td>,
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
 
         {/* Generative UI Slot */}
         {message.ui && <GenerativeUIRenderer ui={message.ui} />}
 
         {/* Action bar */}
-        <MessageActions content={message.content} onRegenerate={onRegenerate} />
+        {message.content && <MessageActions content={message.content} onRegenerate={onRegenerate} />}
       </div>
     </div>
   )

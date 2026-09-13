@@ -10,6 +10,10 @@ export type ChatMessage = {
   createdAt?: string | Date;
   ui?: GenerativeUIResponse;
   thinkingTime?: string;
+  thinkingText?: string;
+  statusLabel?: string;
+  isSearching?: boolean;
+  searchQuery?: string;
   toolsUsed?: string[];
 };
 

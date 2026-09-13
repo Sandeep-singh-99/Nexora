@@ -9,7 +9,7 @@ import { ChatInput } from "@/components/chat/chat-input"
 import { EmptyState } from "@/components/chat/empty-state"
 import { ScrollToBottom } from "@/components/chat/scroll-to-bottom"
 import { SettingsDialog } from "@/components/chat/settings-dialog"
-import { sendChatMessageApi } from "@/lib/api/ai"
+import { sendChatMessageApi, sendStreamingChatMessageApi } from "@/lib/api/ai"
 import axios from "axios"
 
 // Demo Conversations with structured text + Generative UI data
@@ -190,11 +190,20 @@ export default function ChatPage() {
       createdAt: new Date(),
     }
 
-    const updatedCurrentMessages = [...activeMessages, userMsg]
-    setMessagesMap({
-      ...messagesMap,
-      [activeId]: updatedCurrentMessages,
-    })
+    const assistantMsgId = `msg-ai-${Date.now()}`
+    const initialAssistantMsg: ChatMessage = {
+      id: assistantMsgId,
+      role: "assistant",
+      content: "",
+      thinkingText: "",
+      statusLabel: "Connecting...",
+      createdAt: new Date(),
+    }
+
+    setMessagesMap((prev) => ({
+      ...prev,
+      [activeId]: [...(prev[activeId] || []), userMsg, initialAssistantMsg],
+    }))
 
     setInput("")
     setIsLoading(true)
@@ -208,52 +217,71 @@ export default function ChatPage() {
     const startTime = Date.now()
 
     try {
-      // Connect to FastAPI backend route /api/v1/ai/chat
-      const data = await sendChatMessageApi({ message: textToSend })
-      const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1)
+      await sendStreamingChatMessageApi(
+        { message: textToSend, thread_id: activeId },
+        (event) => {
+          const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1)
 
-      const assistantMsg: ChatMessage = {
-        id: `msg-ai-${Date.now()}`,
-        role: "assistant",
-        content: data.response,
-        thinkingTime: `${durationSeconds}s`,
-        createdAt: new Date(),
-      }
+          setMessagesMap((prev) => {
+            const currentList = prev[activeId] || []
+            const updatedList = currentList.map((msg) => {
+              if (msg.id !== assistantMsgId) return msg
 
-      setMessagesMap((prev) => ({
-        ...prev,
-        [activeId]: [...(prev[activeId] || []), assistantMsg],
-      }))
+              if (event.type === "status") {
+                return { ...msg, statusLabel: event.label, thinkingTime: `${durationSeconds}s` }
+              } else if (event.type === "search") {
+                return {
+                  ...msg,
+                  isSearching: event.status === "searching",
+                  searchQuery: event.query || msg.searchQuery,
+                }
+              } else if (event.type === "thinking") {
+                return {
+                  ...msg,
+                  thinkingText: (msg.thinkingText || "") + event.content,
+                  thinkingTime: `${durationSeconds}s`,
+                }
+              } else if (event.type === "token") {
+                return {
+                  ...msg,
+                  content: msg.content + event.content,
+                  thinkingTime: `${durationSeconds}s`,
+                  statusLabel: undefined,
+                }
+              } else if (event.type === "end") {
+                return { ...msg, statusLabel: undefined }
+              }
+              return msg
+            })
+            return { ...prev, [activeId]: updatedList }
+          })
+        }
+      )
     } catch (error: any) {
       console.error("AI Chat API Error:", error)
-      let displayError = "⚠️ **Connection Error**: Unable to connect to the backend server `/api/v1/ai/chat`. Please make sure your FastAPI backend server is running on `http://localhost:8000`."
+      let displayError = "⚠️ **Connection Error**: Unable to connect to the backend server `/api/v1/ai/chat/stream`. Please make sure your FastAPI backend server is running on `http://localhost:8000`."
 
-      if (axios.isAxiosError(error) && error.response) {
-        const responseData = error.response.data
-        const detail = responseData?.detail || responseData
-
+      if (error && typeof error === "object") {
+        const detail = error.detail || error
         if (typeof detail === "object" && detail !== null) {
           if (detail.code === "CONTENT_BLOCKED") {
             displayError = `🛡️ **Content Blocked**: ${detail.message || "Your message was flagged by safety guardrails and could not be processed."}`
           } else if (detail.message) {
-            displayError = `⚠️ **Error (${error.response.status})**: ${detail.message}`
+            displayError = `⚠️ **Error**: ${detail.message}`
           }
         } else if (typeof detail === "string") {
-          displayError = `⚠️ **Error (${error.response.status})**: ${detail}`
+          displayError = `⚠️ **Error**: ${detail}`
         }
       }
 
-      const errorMsg: ChatMessage = {
-        id: `msg-ai-${Date.now()}`,
-        role: "assistant",
-        content: displayError,
-        createdAt: new Date(),
-      }
-
-      setMessagesMap((prev) => ({
-        ...prev,
-        [activeId]: [...(prev[activeId] || []), errorMsg],
-      }))
+      setMessagesMap((prev) => {
+        const currentList = prev[activeId] || []
+        const updatedList = currentList.map((msg) => {
+          if (msg.id !== assistantMsgId) return msg
+          return { ...msg, content: displayError, statusLabel: undefined }
+        })
+        return { ...prev, [activeId]: updatedList }
+      })
     } finally {
       setIsLoading(false)
     }

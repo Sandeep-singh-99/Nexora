@@ -2,11 +2,21 @@ import { api } from "./axios";
 
 export interface ChatRequest {
   message: string;
+  thread_id?: string;
 }
 
 export interface ChatResponse {
   response: string;
+  thread_id?: string;
 }
+
+export type SSEEvent =
+  | { type: "status"; label: string; node?: string }
+  | { type: "search"; status: "searching" | "completed"; query?: string }
+  | { type: "thinking"; content: string }
+  | { type: "token"; content: string }
+  | { type: "end" }
+  | { type: "error"; message: string };
 
 export const sendChatMessageApi = async (
   data: ChatRequest
@@ -14,3 +24,45 @@ export const sendChatMessageApi = async (
   const response = await api.post<ChatResponse>("/ai/chat", data);
   return response.data;
 };
+
+export async function sendStreamingChatMessageApi(
+  payload: ChatRequest,
+  onEvent: (event: SSEEvent) => void
+): Promise<void> {
+  const response = await fetch("http://localhost:8000/api/v1/ai/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw errorData;
+  }
+
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder("utf-8");
+
+  if (!reader) return;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n\n");
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const jsonStr = line.replace("data: ", "").trim();
+      if (!jsonStr) continue;
+
+      try {
+        const event: SSEEvent = JSON.parse(jsonStr);
+        onEvent(event);
+      } catch (e) {
+        console.error("Error parsing SSE line:", e);
+      }
+    }
+  }
+}
