@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { Menu, Sparkles, ArrowRight, User as UserIcon, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Menu, Sparkles, ArrowRight, User as UserIcon, LogOut, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { NAV_ITEMS } from "@/lib/constants";
@@ -79,6 +80,13 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
               <div className="w-20 h-8 bg-white/5 animate-pulse rounded-xl" />
             ) : user ? (
               <div className="flex items-center gap-3">
+                <Link
+                  href="/chat"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-emerald-950/40 cursor-pointer active:scale-[0.98]"
+                >
+                  <MessageSquare className="w-4 h-4 fill-slate-950" />
+                  <span>Go to Chat</span>
+                </Link>
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-white/[0.05] border border-white/10 rounded-xl text-xs text-slate-300">
                   <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="max-w-[140px] truncate">{user.email}</span>
@@ -170,7 +178,15 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
 
         <div className="mt-8 flex flex-col gap-3 pt-6 border-t border-white/10">
           {user ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
+              <Link
+                href="/chat"
+                onClick={() => setMobileOpen(false)}
+                className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold text-slate-950 bg-emerald-500 hover:bg-emerald-400 rounded-xl transition-colors cursor-pointer shadow-lg shadow-emerald-950/30"
+              >
+                <MessageSquare className="w-4 h-4 fill-slate-950" />
+                <span>Go to Workspace / Chat</span>
+              </Link>
               <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-xl text-xs text-slate-300">
                 <UserIcon className="w-4 h-4 text-emerald-400" />
                 <span className="truncate">{user.email}</span>

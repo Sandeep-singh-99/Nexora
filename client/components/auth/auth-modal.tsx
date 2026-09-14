@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { X, ArrowRight, Lock, Mail, CheckCircle2, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useLogin, useRegister, getErrorMessage } from "@/hooks/use-auth";
 
@@ -19,6 +20,7 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const router = useRouter();
   const loginMutation = useLogin();
   const registerMutation = useRegister();
 
@@ -67,6 +69,7 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
             setTimeout(() => {
               onClose();
               setSuccessMessage(null);
+              router.push("/chat");
             }, 1200);
           },
           onError: (error) => {
@@ -90,6 +93,7 @@ export function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalP
                     setSuccessMessage(null);
                     setEmail("");
                     setPassword("");
+                    router.push("/chat");
                   }, 1200);
                 },
                 onError: (error) => {

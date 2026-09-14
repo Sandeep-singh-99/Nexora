@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useCurrentUser } from "@/hooks/use-auth"
 import { ChatMessage, ConversationSession } from "@/types/chat"
 import { ChatSidebar } from "@/components/chat/chat-sidebar"
 import { ChatHeader } from "@/components/chat/chat-header"
@@ -111,6 +113,15 @@ const INITIAL_MESSAGES_MAP: Record<string, ChatMessage[]> = {
 }
 
 export default function ChatPage() {
+  const router = useRouter()
+  const { data: user, isLoading: isAuthLoading } = useCurrentUser()
+
+  useEffect(() => {
+    if (!isAuthLoading && !user) {
+      router.replace("/")
+    }
+  }, [user, isAuthLoading, router])
+
   const [conversations, setConversations] = useState<ConversationSession[]>(INITIAL_CONVERSATIONS)
   const [activeId, setActiveId] = useState<string>("conv-1")
   const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>(INITIAL_MESSAGES_MAP)
@@ -285,6 +296,21 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#05070B] text-slate-100 font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+          <p className="text-xs font-mono text-slate-400">Verifying authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
   }
 
   return (

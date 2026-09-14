@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Sheet } from "@/components/ui/sheet"
+import { useCurrentUser } from "@/hooks/use-auth"
 
 interface ChatSidebarProps {
   conversations: ConversationSession[]
@@ -29,6 +30,11 @@ export function SidebarContent({
   onOpenSettings,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const { data: user } = useCurrentUser()
+
+  const userInitials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : "US"
 
   const filtered = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -139,15 +145,17 @@ export function SidebarContent({
 
       {/* User Footer Profile & Settings */}
       <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Avatar className="h-8 w-8 bg-emerald-950 border border-emerald-500/30">
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <Avatar className="h-8 w-8 bg-emerald-950 border border-emerald-500/30 shrink-0">
             <AvatarFallback className="bg-emerald-950 text-emerald-300 text-xs font-bold">
-              US
+              {userInitials}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <p className="text-xs font-semibold text-white">Sandeep Singh</p>
-            <p className="text-[10px] text-slate-400">Pro Developer</p>
+          <div className="overflow-hidden">
+            <p className="text-xs font-semibold text-white truncate max-w-[120px]">
+              {user?.email || "User Account"}
+            </p>
+            <p className="text-[10px] text-slate-400">Pro Workspace</p>
           </div>
         </div>
 
