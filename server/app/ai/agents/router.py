@@ -2,12 +2,14 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from langchain.agents import create_agent
 from app.ai.core.llm import get_llm
-from app.ai.core.state import AgentState
+from app.ai.core.state import AgentState, get_trimmed_messages
+
 
 class RouteDecision(BaseModel):
     next_step: Literal['chat_agent', 'coding_agent', 'research_agent'] = Field(
         description="The target agent node to handle the request."
     )
+
 
 router_agent = create_agent(
     model=get_llm("groq"),
@@ -21,10 +23,15 @@ router_agent = create_agent(
     response_format=RouteDecision
 )
 
+
 async def router_node(state: AgentState) -> dict:
     """Wrapper node for router_agent structured output decision."""
     try:
-        result = await router_agent.ainvoke(state)
+        messages = state.get("messages", [])
+        # Trim messages for router to prevent token limit errors
+        trimmed = get_trimmed_messages(messages, max_tokens=1000)
+        result = await router_agent.ainvoke({"messages": trimmed})
+
         struct_resp = result.get("structured_response")
         if isinstance(struct_resp, RouteDecision):
             return {"next_step": struct_resp.next_step}

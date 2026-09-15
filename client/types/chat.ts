@@ -3,6 +3,13 @@ export type GenerativeUIResponse = {
   props: Record<string, unknown>;
 };
 
+export type SearchResultItem = {
+  title: string;
+  url: string;
+  snippet?: string;
+  source?: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -14,6 +21,7 @@ export type ChatMessage = {
   statusLabel?: string;
   isSearching?: boolean;
   searchQuery?: string;
+  searchResults?: SearchResultItem[];
   toolsUsed?: string[];
 };
 

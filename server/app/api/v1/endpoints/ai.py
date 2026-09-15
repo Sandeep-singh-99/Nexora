@@ -1,5 +1,6 @@
 import json
 import logging
+from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
@@ -12,10 +13,80 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="", tags=["AI"])
 
 
+def extract_search_query(tool_input) -> str:
+    """Safely extracts search query string from LangChain tool input."""
+    if isinstance(tool_input, str):
+        return tool_input
+    if isinstance(tool_input, dict):
+        return str(tool_input.get("query") or tool_input.get("input") or tool_input)
+    return str(tool_input or "")
+
+
+def extract_tavily_results(tool_output) -> list[dict]:
+    """Parses Tavily tool outputs (list of dicts, strings, or documents) into standard search items."""
+    results = []
+    if not tool_output:
+        return results
+
+    raw_items = []
+    if isinstance(tool_output, list):
+        raw_items = tool_output
+    elif isinstance(tool_output, dict):
+        raw_items = tool_output.get("results") or [tool_output]
+    elif isinstance(tool_output, str):
+        try:
+            parsed = json.loads(tool_output)
+            if isinstance(parsed, list):
+                raw_items = parsed
+            elif isinstance(parsed, dict):
+                raw_items = parsed.get("results") or [parsed]
+        except Exception:
+            pass
+
+    for item in raw_items:
+        if isinstance(item, dict):
+            url = item.get("url", "")
+            title = item.get("title") or item.get("name") or "Web Source"
+            snippet = item.get("content") or item.get("snippet") or item.get("raw_content") or ""
+            domain = "web"
+            if url and url.startswith("http"):
+                try:
+                    domain = urlparse(url).netloc.replace("www.", "")
+                except Exception:
+                    domain = "web"
+            results.append({
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+                "source": domain or "web",
+            })
+        elif hasattr(item, "page_content"):
+            content = getattr(item, "page_content", "")
+            meta = getattr(item, "metadata", {}) or {}
+            url = meta.get("url") or meta.get("source") or ""
+            title = meta.get("title") or "Web Source"
+            domain = "web"
+            if url and url.startswith("http"):
+                try:
+                    domain = urlparse(url).netloc.replace("www.", "")
+                except Exception:
+                    domain = "web"
+            results.append({
+                "title": title,
+                "url": url,
+                "snippet": content,
+                "source": domain or "web",
+            })
+
+    return results
+
+
 async def event_generator(message: str, thread_id: str):
-    """Streams thinking steps, tool invocations (web search), guardrails status, and LLM response tokens."""
+    """Streams thinking steps, Tavily search queries & results, guardrails status, and LLM response tokens."""
     config = {"configurable": {"thread_id": thread_id}}
     input_data = {"messages": [HumanMessage(content=message)]}
+
+    active_search_query = ""
 
     try:
         # Stream events from LangGraph
@@ -37,23 +108,35 @@ async def event_generator(message: str, thread_id: str):
                     "router": "Analyzing request intent...",
                     "chat_agent": "Generating response...",
                     "coding_agent": "Architecting & writing code...",
-                    "research_agent": "Conducting deep research...",
+                    "research_agent": "Conducting deep research via Tavily...",
                     "output_guardrail": "Verifying response integrity...",
                 }
                 payload = json.dumps({"type": "status", "node": name, "label": labels.get(name, "Processing...")})
                 yield f"data: {payload}\n\n"
 
-            # 2. Web Search Tool Invocation
-            elif kind == "on_tool_start" and "search" in name.lower():
-                query = event.get("data", {}).get("input", {}).get("query", "")
-                payload = json.dumps({"type": "search", "query": query, "status": "searching"})
+            # 2. Tavily Web Search Tool Invocation Start & End
+            elif kind == "on_tool_start" and ("search" in name.lower() or "tavily" in name.lower()):
+                raw_input = event.get("data", {}).get("input")
+                active_search_query = extract_search_query(raw_input)
+                payload = json.dumps({
+                    "type": "search",
+                    "query": active_search_query,
+                    "status": "searching",
+                })
                 yield f"data: {payload}\n\n"
 
-            elif kind == "on_tool_end" and "search" in name.lower():
-                payload = json.dumps({"type": "search", "status": "completed"})
+            elif kind == "on_tool_end" and ("search" in name.lower() or "tavily" in name.lower()):
+                raw_output = event.get("data", {}).get("output")
+                parsed_results = extract_tavily_results(raw_output)
+                payload = json.dumps({
+                    "type": "search",
+                    "status": "completed",
+                    "query": active_search_query,
+                    "results": parsed_results,
+                })
                 yield f"data: {payload}\n\n"
 
-            # 3. LLM Thinking & Reasoning Tokens or Blocked Message Content
+            # 3. LLM Thinking & Reasoning Tokens
             elif kind == "on_chat_model_stream":
                 chunk = event["data"]["chunk"]
                 
@@ -88,7 +171,7 @@ async def event_generator(message: str, thread_id: str):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    """SSE Streaming Endpoint supporting Guardrails, Thinking, Web Search, and Tokens."""
+    """SSE Streaming Endpoint supporting Guardrails, Tavily Search, Thinking, and Tokens."""
     try:
         validate_input(request.message)
         thread_id = request.thread_id or "default_session"

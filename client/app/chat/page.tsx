@@ -245,6 +245,7 @@ export default function ChatPage() {
                   ...msg,
                   isSearching: event.status === "searching",
                   searchQuery: event.query || msg.searchQuery,
+                  searchResults: event.results && event.results.length > 0 ? event.results : msg.searchResults,
                 }
               } else if (event.type === "thinking") {
                 return {

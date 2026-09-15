@@ -10,9 +10,21 @@ export interface ChatResponse {
   thread_id?: string;
 }
 
+export interface SearchResultItem {
+  title: string;
+  url: string;
+  snippet?: string;
+  source?: string;
+}
+
 export type SSEEvent =
   | { type: "status"; label: string; node?: string }
-  | { type: "search"; status: "searching" | "completed"; query?: string }
+  | {
+      type: "search";
+      status: "searching" | "completed";
+      query?: string;
+      results?: SearchResultItem[];
+    }
   | { type: "thinking"; content: string }
   | { type: "token"; content: string }
   | { type: "end" }

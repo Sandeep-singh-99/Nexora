@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from langchain_tavily import TavilySearch
 from app.ai.core.llm import get_llm
 
-search_tool = TavilySearch(max_results=5)
+search_tool = TavilySearch()
 
 research_agent = create_agent(
     model=get_llm("groq"),
