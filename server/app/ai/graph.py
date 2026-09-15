@@ -4,9 +4,9 @@ from langgraph.checkpoint.memory import MemorySaver
 from app.ai.core.state import AgentState
 from app.ai.middleware.abuse_filter import guardrail_node
 from app.ai.agents.router import router_node
-from app.ai.agents.chat_agent import chat_node
-from app.ai.agents.coding_agent import coding_node
-from app.ai.agents.research_agent import research_node
+from app.ai.agents.chat_agent import chat_agent
+from app.ai.agents.coding_agent import coding_agent
+from app.ai.agents.research_agent import research_agent
 
 def route_decision(state: AgentState) -> str:
     return state.get("next_step", "chat_agent")
@@ -16,9 +16,9 @@ builder = StateGraph(AgentState)
 # Add Nodes
 builder.add_node("guardrail", guardrail_node)
 builder.add_node("router", router_node)
-builder.add_node("chat_agent", chat_node)
-builder.add_node("coding_agent", coding_node)
-builder.add_node("research_agent", research_node)
+builder.add_node("chat_agent", chat_agent)
+builder.add_node("coding_agent", coding_agent)
+builder.add_node("research_agent", research_agent)
 
 # Flow Edges
 builder.add_edge(START, "guardrail")

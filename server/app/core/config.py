@@ -36,6 +36,8 @@ class Settings:
     HUGGINGFACE_API_KEY: str = os.getenv("HUGGINGFACE_API_KEY", "")
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "")
 
+    TAVILY_SEARCH: str = os.getenv("TAVILY_API_KEY", "")
+
 
     # Frontend
     FRONTEND_URL: str = os.getenv(
