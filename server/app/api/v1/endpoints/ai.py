@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from langchain_core.messages import HumanMessage
 from app.schemas.ai import ChatRequest, ChatResponse
 from app.ai.graph import ai_graph
 from app.ai.guardrails.input_filter import validate_input, AbuseFilterError
@@ -13,7 +14,7 @@ router = APIRouter(prefix="", tags=["AI"])
 async def event_generator(message: str, thread_id: str):
     """Streams thinking steps, tool invocations (web search), and LLM response tokens."""
     config = {"configurable": {"thread_id": thread_id}}
-    input_data = {"messages": [{"role": "user", "content": message}]}
+    input_data = {"messages": [HumanMessage(content=message)]}
 
     try:
         # Stream events from LangGraph
@@ -104,7 +105,7 @@ async def chat(request: ChatRequest):
         config = {"configurable": {"thread_id": request.thread_id or "default_session"}}
 
         result = await ai_graph.ainvoke(
-            {"messages": [{"role": "user", "content": request.message}]},
+            {"messages": [HumanMessage(content=request.message)]},
             config=config,
         )
 

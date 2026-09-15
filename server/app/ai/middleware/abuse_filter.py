@@ -1,6 +1,6 @@
 from typing import Any
-from langchain.agents.middleware import AgentMiddleware
-
+from app.ai.core.state import AgentState
+from app.ai.guardrails.abuse import abuse
 
 class AbuseFilterError(Exception):
     """Raised when user input violates the abuse guardrail."""
@@ -9,35 +9,18 @@ class AbuseFilterError(Exception):
         self.message = message
         super().__init__(message)
 
+async def guardrail_node(state: AgentState) -> dict:
+    """LangGraph node to validate the latest message against prohibited content."""
+    messages = state.get("messages", [])
+    if not messages:
+        return {}
 
-class AbuseFilterMiddleware(AgentMiddleware):
-    def __init__(self, banned_keywords: list[str]):
-        self.banned_keywords = [
-            keyword.lower() for keyword in banned_keywords
-        ]
-
-    def before_agent(
-        self,
-        state: dict[str, Any],
-        runtime: Any,
-    ):
-        messages = state.get("messages", [])
-
-        if not messages:
-            return None
-
-        last_message = messages[-1]
-        content = getattr(last_message, "content", "")
-
-        if not isinstance(content, str):
-            return None
-
+    last_message = messages[-1]
+    content = getattr(last_message, "content", "")
+    if isinstance(content, str):
         text = content.lower()
+        for keyword in abuse:
+            if keyword.lower() in text:
+                raise AbuseFilterError("Your message contains prohibited content.")
 
-        for keyword in self.banned_keywords:
-            if keyword in text:
-                raise AbuseFilterError(
-                    "Your message contains prohibited content."
-                )
-
-        return None
+    return {}
