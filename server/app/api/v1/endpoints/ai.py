@@ -11,8 +11,9 @@ from app.ai.guardrails.input_filter import validate_input, AbuseFilterError
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="", tags=["AI"])
 
+
 async def event_generator(message: str, thread_id: str):
-    """Streams thinking steps, tool invocations (web search), and LLM response tokens."""
+    """Streams thinking steps, tool invocations (web search), guardrails status, and LLM response tokens."""
     config = {"configurable": {"thread_id": thread_id}}
     input_data = {"messages": [HumanMessage(content=message)]}
 
@@ -22,13 +23,22 @@ async def event_generator(message: str, thread_id: str):
             kind = event.get("event")
             name = event.get("name", "")
 
-            # 1. Agent Node Status Updates
-            if kind == "on_chain_start" and name in ["router", "chat_agent", "coding_agent", "research_agent"]:
+            # 1. Node Execution Status Updates
+            if kind == "on_chain_start" and name in [
+                "input_guardrail",
+                "router",
+                "chat_agent",
+                "coding_agent",
+                "research_agent",
+                "output_guardrail",
+            ]:
                 labels = {
-                    "router": "Analyzing intent...",
+                    "input_guardrail": "Evaluating safety policies...",
+                    "router": "Analyzing request intent...",
                     "chat_agent": "Generating response...",
                     "coding_agent": "Architecting & writing code...",
                     "research_agent": "Conducting deep research...",
+                    "output_guardrail": "Verifying response integrity...",
                 }
                 payload = json.dumps({"type": "status", "node": name, "label": labels.get(name, "Processing...")})
                 yield f"data: {payload}\n\n"
@@ -43,7 +53,7 @@ async def event_generator(message: str, thread_id: str):
                 payload = json.dumps({"type": "search", "status": "completed"})
                 yield f"data: {payload}\n\n"
 
-            # 3. LLM Thinking & Reasoning Tokens
+            # 3. LLM Thinking & Reasoning Tokens or Blocked Message Content
             elif kind == "on_chat_model_stream":
                 chunk = event["data"]["chunk"]
                 
@@ -58,6 +68,15 @@ async def event_generator(message: str, thread_id: str):
                     payload = json.dumps({"type": "token", "content": chunk.content})
                     yield f"data: {payload}\n\n"
 
+            # 4. Stream blocked response node message content if graph routed to blocked_response
+            elif kind == "on_chain_end" and name == "blocked_response":
+                output = event.get("data", {}).get("output", {})
+                msgs = output.get("messages", [])
+                if msgs:
+                    blocked_text = msgs[-1].content
+                    payload = json.dumps({"type": "token", "content": blocked_text})
+                    yield f"data: {payload}\n\n"
+
         # Signal completion
         yield f"data: {json.dumps({'type': 'end'})}\n\n"
 
@@ -69,7 +88,7 @@ async def event_generator(message: str, thread_id: str):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    """SSE Streaming Endpoint supporting Thinking, Web Search, and Tokens."""
+    """SSE Streaming Endpoint supporting Guardrails, Thinking, Web Search, and Tokens."""
     try:
         validate_input(request.message)
         thread_id = request.thread_id or "default_session"
@@ -86,7 +105,7 @@ async def chat_stream(request: ChatRequest):
     except AbuseFilterError as e:
         raise HTTPException(
             status_code=400,
-            detail={"code": "CONTENT_BLOCKED", "message": e.message},
+            detail={"code": e.code, "message": e.message},
         )
     except Exception as e:
         logger.exception("AI Stream execution error: %s", e)
@@ -98,11 +117,12 @@ async def chat_stream(request: ChatRequest):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Standard non-streaming JSON endpoint."""
+    """Standard non-streaming JSON endpoint with pre-flight and graph guardrails."""
     try:
         validate_input(request.message)
 
-        config = {"configurable": {"thread_id": request.thread_id or "default_session"}}
+        thread_id = request.thread_id or "default_session"
+        config = {"configurable": {"thread_id": thread_id}}
 
         result = await ai_graph.ainvoke(
             {"messages": [HumanMessage(content=request.message)]},
@@ -113,13 +133,13 @@ async def chat(request: ChatRequest):
 
         return ChatResponse(
             response=str(final_response),
-            thread_id=request.thread_id or "default_session",
+            thread_id=thread_id,
         )
 
     except AbuseFilterError as e:
         raise HTTPException(
             status_code=400,
-            detail={"code": "CONTENT_BLOCKED", "message": e.message},
+            detail={"code": e.code, "message": e.message},
         )
     except Exception as e:
         logger.exception("AI Graph execution error: %s", e)

@@ -45,7 +45,7 @@ async def setup_database():
 @pytest.mark.asyncio
 async def test_full_auth_flow_mobile_and_web():
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test/api/v1") as client:
         # 1. User Registration
         reg_payload = {
             "email": "user@example.com",
@@ -126,7 +126,7 @@ async def test_full_auth_flow_mobile_and_web():
 @pytest.mark.asyncio
 async def test_password_reset_flow():
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test/api/v1") as client:
         # Register user
         await client.post("/auth/register", json={"email": "reset@example.com", "password": "OldPassword123!"})
 
