@@ -39,12 +39,14 @@ export const sendChatMessageApi = async (
 
 export async function sendStreamingChatMessageApi(
   payload: ChatRequest,
-  onEvent: (event: SSEEvent) => void
+  onEvent: (event: SSEEvent) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const response = await fetch("http://localhost:8000/api/v1/ai/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal,
   });
 
   if (!response.ok) {
@@ -57,24 +59,34 @@ export async function sendStreamingChatMessageApi(
 
   if (!reader) return;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split("\n\n");
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n\n");
 
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const jsonStr = line.replace("data: ", "").trim();
-      if (!jsonStr) continue;
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const jsonStr = line.replace("data: ", "").trim();
+        if (!jsonStr) continue;
 
-      try {
-        const event: SSEEvent = JSON.parse(jsonStr);
-        onEvent(event);
-      } catch (e) {
-        console.error("Error parsing SSE line:", e);
+        try {
+          const event: SSEEvent = JSON.parse(jsonStr);
+          onEvent(event);
+        } catch (e) {
+          console.error("Error parsing SSE line:", e);
+        }
       }
     }
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      console.log("Stream manually stopped by user.");
+      return;
+    }
+    throw err;
+  } finally {
+    reader.releaseLock();
   }
 }

@@ -1,7 +1,8 @@
 import json
 import logging
+import asyncio
 from urllib.parse import urlparse
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from langchain_core.messages import HumanMessage
@@ -81,8 +82,11 @@ def extract_tavily_results(tool_output) -> list[dict]:
     return results
 
 
-async def event_generator(message: str, thread_id: str):
-    """Streams thinking steps, Tavily search queries & results, guardrails status, and LLM response tokens."""
+async def event_generator(request: Request, message: str, thread_id: str):
+    """Streams thinking steps, Tavily search queries & results, guardrails status, and LLM response tokens.
+    
+    Monitors client connection state to stop execution immediately when the user clicks 'Stop'.
+    """
     config = {"configurable": {"thread_id": thread_id}}
     input_data = {"messages": [HumanMessage(content=message)]}
 
@@ -91,6 +95,11 @@ async def event_generator(message: str, thread_id: str):
     try:
         # Stream events from LangGraph
         async for event in ai_graph.astream_events(input_data, config=config, version="v2"):
+            # Detect client disconnect / Stop button click
+            if await request.is_disconnected():
+                logger.info("Client cancelled stream. Terminating LangGraph execution for thread %s.", thread_id)
+                break
+
             kind = event.get("event")
             name = event.get("name", "")
 
@@ -163,6 +172,9 @@ async def event_generator(message: str, thread_id: str):
         # Signal completion
         yield f"data: {json.dumps({'type': 'end'})}\n\n"
 
+    except (asyncio.CancelledError, GeneratorExit):
+        logger.info("SSE Stream connection cancelled by client for thread %s.", thread_id)
+        return
     except Exception as e:
         logger.exception("Streaming error: %s", e)
         err_payload = json.dumps({"type": "error", "message": str(e)})
@@ -170,14 +182,14 @@ async def event_generator(message: str, thread_id: str):
 
 
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
-    """SSE Streaming Endpoint supporting Guardrails, Tavily Search, Thinking, and Tokens."""
+async def chat_stream(request_data: ChatRequest, request: Request):
+    """SSE Streaming Endpoint supporting Cancellation, Guardrails, Tavily Search, Thinking, and Tokens."""
     try:
-        validate_input(request.message)
-        thread_id = request.thread_id or "default_session"
+        validate_input(request_data.message)
+        thread_id = request_data.thread_id or "default_session"
 
         return StreamingResponse(
-            event_generator(request.message, thread_id),
+            event_generator(request, request_data.message, thread_id),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

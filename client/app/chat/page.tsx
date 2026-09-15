@@ -1,32 +1,30 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useCurrentUser } from "@/hooks/use-auth"
-import { ChatMessage, ConversationSession } from "@/types/chat"
+import React, { useState, useEffect, useRef } from "react"
+import { useAuth } from "@/components/providers/auth-provider"
 import { ChatSidebar } from "@/components/chat/chat-sidebar"
 import { ChatHeader } from "@/components/chat/chat-header"
-import { ChatMessageItem } from "@/components/chat/chat-message"
-import { ChatInput } from "@/components/chat/chat-input"
+import { AssistantMessage } from "@/components/chat/assistant-message"
+import { UserMessage } from "@/components/chat/user-message"
 import { EmptyState } from "@/components/chat/empty-state"
+import { ChatInput } from "@/components/chat/chat-input"
 import { ScrollToBottom } from "@/components/chat/scroll-to-bottom"
 import { SettingsDialog } from "@/components/chat/settings-dialog"
-import { sendChatMessageApi, sendStreamingChatMessageApi } from "@/lib/api/ai"
-import axios from "axios"
+import { ChatMessage, ConversationSession } from "@/types/chat"
+import { sendStreamingChatMessageApi } from "@/lib/api/ai"
 
-// Demo Conversations with structured text + Generative UI data
 const INITIAL_CONVERSATIONS: ConversationSession[] = [
   {
     id: "conv-1",
     title: "Monthly Revenue Analytics",
-    updatedAt: "10 mins ago",
+    updatedAt: "Just now",
     preview: "Show me my monthly revenue.",
-    model: "gemini-2.5-flash",
+    model: "llama-3.3-70b-versatile",
     category: "Today",
   },
   {
     id: "conv-2",
-    title: "Recent Account Transactions",
+    title: "Recent User Transactions",
     updatedAt: "1 hour ago",
     preview: "Show my recent transactions.",
     model: "gemini-2.5-flash",
@@ -59,10 +57,15 @@ const INITIAL_MESSAGES_MAP: Record<string, ChatMessage[]> = {
       ui: {
         type: "chart",
         props: {
-          title: "Monthly Revenue",
-          value: "$24,580",
-          change: "+18.4%",
-          period: "vs last month",
+          title: "September 2026 Monthly Revenue Breakdown",
+          description: "Revenue performance across main subscription tiers.",
+          totalAmount: "$24,580",
+          growthRate: "+18.4%",
+          data: [
+            { name: "Pro Tier ($49/mo)", value: 12400 },
+            { name: "Enterprise ($499/mo)", value: 8500 },
+            { name: "Starter ($19/mo)", value: 3680 },
+          ],
         },
       },
     },
@@ -77,13 +80,19 @@ const INITIAL_MESSAGES_MAP: Record<string, ChatMessage[]> = {
     {
       id: "msg-2-2",
       role: "assistant",
-      content: "Here are your recent subscription payments and hosting transactions retrieved from the billing ledger:",
-      thinkingTime: "2.1s",
+      content: "Here are the 4 most recent user transactions processed in your workspace:",
+      thinkingTime: "1.2s",
       createdAt: new Date(),
       ui: {
         type: "table",
         props: {
-          title: "Recent Transactions",
+          title: "Recent Workspaces Transactions",
+          rows: [
+            { id: "TX-9021", user: "Acme Corp", amount: "$1,490.00", status: "Completed", date: "Sep 14, 2026" },
+            { id: "TX-9022", user: "DevStudio Inc", amount: "$490.00", status: "Completed", date: "Sep 14, 2026" },
+            { id: "TX-9023", user: "SaaSify Co", amount: "$99.00", status: "Pending", date: "Sep 15, 2026" },
+            { id: "TX-9024", user: "John Doe", amount: "$29.00", status: "Completed", date: "Sep 15, 2026" },
+          ],
         },
       },
     },
@@ -98,14 +107,18 @@ const INITIAL_MESSAGES_MAP: Record<string, ChatMessage[]> = {
     {
       id: "msg-3-2",
       role: "assistant",
-      content: "Here is your active project status card for **ClassBuddy** featuring the current stack and repository metrics:",
-      thinkingTime: "2.4s",
+      content: "Here is your active project card summary:",
+      thinkingTime: "1.0s",
       createdAt: new Date(),
       ui: {
         type: "project",
         props: {
-          name: "ClassBuddy AI",
-          status: "Active Development",
+          title: "ClassBuddy AI Platform",
+          status: "In Progress",
+          progress: 78,
+          membersCount: 6,
+          updatedDate: "Sep 14, 2026",
+          tags: ["Next.js 15", "FastAPI", "LangGraph", "PostgreSQL"],
         },
       },
     },
@@ -113,20 +126,14 @@ const INITIAL_MESSAGES_MAP: Record<string, ChatMessage[]> = {
 }
 
 export default function ChatPage() {
-  const router = useRouter()
-  const { data: user, isLoading: isAuthLoading } = useCurrentUser()
-
-  useEffect(() => {
-    if (!isAuthLoading && !user) {
-      router.replace("/")
-    }
-  }, [user, isAuthLoading, router])
+  const { user, isLoading: isAuthLoading } = useAuth()
 
   const [conversations, setConversations] = useState<ConversationSession[]>(INITIAL_CONVERSATIONS)
   const [activeId, setActiveId] = useState<string>("conv-1")
   const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>(INITIAL_MESSAGES_MAP)
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash")
+
   const [input, setInput] = useState<string>("")
+  const [selectedModel, setSelectedModel] = useState<string>("llama-3.3-70b-versatile")
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false)
   const [showScrollBottom, setShowScrollBottom] = useState<boolean>(false)
@@ -134,6 +141,7 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const activeMessages = messagesMap[activeId] || []
 
@@ -189,10 +197,26 @@ export default function ChatPage() {
     setIsSettingsOpen(false)
   }
 
+  // Stop Generation Handler
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setIsLoading(false)
+  }
+
   // Submit User Message
   const handleSubmitMessage = async (customPrompt?: string) => {
     const textToSend = customPrompt || input
     if (!textToSend.trim() || isLoading) return
+
+    // Cancel any previous stream
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
@@ -267,9 +291,27 @@ export default function ChatPage() {
             })
             return { ...prev, [activeId]: updatedList }
           })
-        }
+        },
+        controller.signal
       )
     } catch (error: any) {
+      if (error.name === "AbortError") {
+        console.log("Stream stopped by user abort signal.")
+        setMessagesMap((prev) => {
+          const currentList = prev[activeId] || []
+          const updatedList = currentList.map((msg) => {
+            if (msg.id !== assistantMsgId) return msg
+            return {
+              ...msg,
+              statusLabel: undefined,
+              content: msg.content ? msg.content + " *(Stopped)*" : "*(Response stopped by user)*",
+            }
+          })
+          return { ...prev, [activeId]: updatedList }
+        })
+        return
+      }
+
       console.error("AI Chat API Error:", error)
       let displayError = "⚠️ **Connection Error**: Unable to connect to the backend server `/api/v1/ai/chat/stream`. Please make sure your FastAPI backend server is running on `http://localhost:8000`."
 
@@ -296,6 +338,7 @@ export default function ChatPage() {
       })
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -348,11 +391,16 @@ export default function ChatPage() {
             <EmptyState onSelectSuggestion={(promptText) => handleSubmitMessage(promptText)} />
           ) : (
             activeMessages.map((msg) => (
-              <ChatMessageItem
-                key={msg.id}
-                message={msg}
-                onRegenerate={() => handleSubmitMessage(msg.content)}
-              />
+              <React.Fragment key={msg.id}>
+                {msg.role === "user" ? (
+                  <UserMessage content={msg.content} />
+                ) : (
+                  <AssistantMessage
+                    message={msg}
+                    onRegenerate={() => handleSubmitMessage(msg.content)}
+                  />
+                )}
+              </React.Fragment>
             ))
           )}
 
@@ -380,7 +428,7 @@ export default function ChatPage() {
           setInput={setInput}
           onSubmit={() => handleSubmitMessage()}
           isLoading={isLoading}
-          onStop={() => setIsLoading(false)}
+          onStop={handleStopGeneration}
         />
       </div>
 
